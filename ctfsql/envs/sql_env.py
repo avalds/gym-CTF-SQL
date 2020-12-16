@@ -18,6 +18,7 @@ from qiskit import QuantumCircuit, Aer, execute
 
 class CTFSQLEnv0(gym.Env):
 	"""
+	WIPWIPWIP
 	Description:
 		A quantum circuit with 1 qubit (and 1 classical bit) is given. A random gate is added. Guess the measurement.
 	Observation:
