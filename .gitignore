@@ -1,5 +1,4 @@
-*.egg-info
-*.pyc
-/__pycache__
-/logs
-*~
+.ipynb_checkpoints/
+__pycache__/
+ignore_*
+ctfsql.egg-info/

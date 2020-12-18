@@ -12,63 +12,61 @@ from gym.utils import seeding
 import numpy as np
 import matplotlib.pyplot as plt
 
-from qiskit import QuantumCircuit, Aer, execute
-
 
 
 class CTFSQLEnv0(gym.Env):
 	"""
-	WIPWIPWIP
 	Description:
-		A quantum circuit with 1 qubit (and 1 classical bit) is given. A random gate is added. Guess the measurement.
+		A webserver exposing a query with a potential SQL injection vulnerability. Behind the vulnerability lies a flag.
 	Observation:
-		Type: Discrete(6)
+		Type: MiltiDiscrete(3)
 		Num    Observation
-		0   h
-		1   x
-		2   reset
-		3   t
-		4   tdg
-		5   iden
+		0   action tried and returned a negative answer
+		1   action never tried
+		2   action tried and returned a positive answer
 	Actions:
-		Type: Discrete(2)
+		Type: Discrete(n)
 		Num    Action
-		0    Guess 0
-		1    Guess 1
+		n    SQL statement n
 	Reward:
-		0 for guessing wrong, +1 for guessing right.
+		+10 for capturing the flag, -1 in all the other cases.
 	Starting State:
-		Circuit with 1 quantum and 1 classical bit and 1 random gate.
+		Webserver initialized with a random query. No action tested.
 	Episode Termination:
-		One guess
+		Capture the flag.
 	"""
 
 	metadata = {'render.modes': ['human', 'ansi']}
 
 	def __init__(self):
-		# State
-		self.simulator = Aer.get_backend('qasm_simulator')
-		self.circuit = QuantumCircuit(1,1)
-		self.n_components = 1
-		self.components = [self.circuit.h, self.circuit.x, self.circuit.reset, self.circuit.t, self.circuit.tdg, self.circuit.iden]
-
-		# Observation space
-		self.observation_space = spaces.Discrete(6)
-
 		# Action space
-		self.action_space = spaces.Discrete(2)
+		self.action_space = spaces.Discrete(51)
+		
+		# Observation space
+		self.observation_space = spaces.MultiDiscrete(np.ones(51)*3)
+		
+		# State
+		self.state = np.ones(51)
+		
+		# Random integers to setup the server
+		r = np.random.randint(3)
+		f = np.random.randint(5)
+		self.flag_cols = f
 
+		# The random setup contains the correct escape sequences and the correct SQL injection
+		self.setup = [0+r*17, 1+r*17,(12+f)+r*17]
+
+		# Get the set of actions that are syntactically correct
+		self.syntaxmin = 0+r*17
+		self.syntaxmax = 17+r*17
+
+		self.done = False
+		self.verbose = False
+		if(self.verbose): print('Game setup with a random query')
+		
 		self.seed()
 		self.viewer = None
 		#self.steps_beyond_done = None
-
-		self.listcomponents = []
-		for i in range(self.n_components):
-			index = np.random.choice(6)
-			self.components[index](0)
-			self.listcomponents.append(index)
-		self.circuit.measure(0,0)
-		self.state = self.listcomponents[0]
 
 	def seed(self, seed=None):
 		self.np_random, seed = seeding.np_random(seed)
@@ -77,31 +75,42 @@ class CTFSQLEnv0(gym.Env):
 	def step(self, action):
 		assert self.action_space.contains(action), "%r (%s) invalid"%(action, type(action))
 
-		results = execute(self.circuit, backend = self.simulator, shots = 1).result()
-		counts = results.get_counts()
-		if(counts.get(str(action*1), 0)):
-			reward = 1.
+		# Process action
+		if (action==self.setup[0]):
+			if(self.verbose): print('Correct exploratory action for the escape. I return 1')
+			self.state[action] = 0
+			return self.state,-1,self.done,{'msg':'Server response is 1'}
+		elif (action==self.setup[1]):
+			if(self.verbose): print('Correct exploratory action for the escape. I return 2')
+			self.state[action] = 0
+			return self.state,-1,self.done,{'msg':'Server response is 2'}
+		elif (action==self.setup[2]):
+			if(self.verbose): print('Flag captured. I return 3')
+			self.done = True
+			return self.state,10,self.done,{'msg':'Server response is 3'}
+		elif (action >= self.syntaxmin and action < self.syntaxmax):
+			if(action == self.flag_cols*2 + self.setup[1] + 1 or action == self.flag_cols*2 + self.setup[1] + 2):
+				if(self.verbose): print('Query with correct number of rows')
+				self.state[action] = 0
+				return self.state,-1,self.done,{'msg':'Server response is 4'}
+
+			if(self.verbose): print('Query has the correct escape, but contains the wrong number of rows. I return 0')
+			self.state[action] = 2
+			return self.state,-1,self.done,{'msg':'Server response is 0'}
 		else:
-			reward = -1.
-
-		done = True
-
-		return np.array(self.state), reward, done, {}
+			if(self.verbose): print('Query is syntactically wrong. I return -1')
+			self.state[action] = 2
+			return self.state,-1,self.done,{'msg':'Server response is -1'}
 
 	def reset(self):
-		self.circuit = QuantumCircuit(1,1)
-		self.components = [self.circuit.h, self.circuit.x, self.circuit.reset, self.circuit.t, self.circuit.tdg, self.circuit.iden]
-		self.listcomponents = []
-		for i in range(self.n_components):
-			index = np.random.choice(6)
-			self.components[index](0)
-			self.listcomponents.append(index)
-		self.circuit.measure(0,0)
-		self.state = self.listcomponents[0]
-		return np.array(self.state)
+		self.done = False
+		self.state = np.ones(51)
+		if(self.verbose): print('Game reset (but not reinitialized with a new random query!)')
+		return self.state,0,self.done,{'msg':'Game reset'}
+		
 
 	def render(self, mode='human'):
-		return self.circuit.draw(output='mpl')
+		return None
 
 	def close(self):
 		return
