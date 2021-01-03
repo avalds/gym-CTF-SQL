@@ -113,7 +113,16 @@ class CTFSQLEnv0(gym.Env):
 	def reset(self):
 		self.done = False
 		self.state = np.ones(51)
-		if(self.verbose): print('Game reset (but not reinitialized with a new random query!)')
+
+		# Reinitializing the random query        
+		r = np.random.randint(3)
+		f = np.random.randint(5)
+		self.flag_cols = f
+		self.setup = [0+r*17, 1+r*17,(12+f)+r*17]
+		self.syntaxmin = 0+r*17
+		self.syntaxmax = 17+r*17
+        
+		if(self.verbose): print('Game reset (with a new random query!)')
 		return self.state#,0,self.done,{'msg':'Game reset'}
 
 
